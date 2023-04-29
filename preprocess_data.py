@@ -185,7 +185,8 @@ class Normalization:
 
     def normalize_mean(self):
         # Group rows by patient and compute the mean
-        train_df =  self.train_df[self.cont_features]
+        curr_features = self.cont_features + ['patient']
+        train_df =  self.train_df[curr_features]
         groups = train_df.groupby('patient').mean()
         # Create a new DataFrame where each row represents the mean for a patient
         train_df_mean = pd.DataFrame(groups.values, columns=groups.columns, index=groups.index).reset_index()
@@ -204,7 +205,7 @@ class Normalization:
         :rtype: pandas.DataFrame
         """
         train_patients = dict(list(self.train_df.groupby('patient')))
-        func = np.max
+        agg_func = np.max
         if by == 'Mean':
             func = np.mean
         elif by == 'Median':
@@ -216,9 +217,9 @@ class Normalization:
                     bucket_size = int(len(values) / 3)
                     values1, values2, values3 = [values[:bucket_size], values[bucket_size:2 * bucket_size], values[
                                                                                                             2 * bucket_size:]]
-                    val1, val2, val3 = func(values1), func(values2), func(values3)
+                    val1, val2, val3 = agg_func(values1), agg_func(values2), agg_func(values3)
                 elif len(values) > 2:
-                    val1, val2, val3 = values[0], values[1], func(values[2:])
+                    val1, val2, val3 = values[0], values[1], agg_func(values[2:])
                 else:
                     val1, val2, val3 = values[0], values[0], values[0]
                 patient_df.loc[:, f'{feature}_b1'] = val1
@@ -432,7 +433,7 @@ class PreProcess:
         # Normalize timeseries feature to have only one per patient based on normalization_type
         new_cont_features = list(set(self.cont_features) & set(df_filtered.columns)) + self.special_features
         norm_obj = Normalization(df_filtered, new_cont_features)
-        df_normalized = norm_obj.normalize_by(pipeline_dict.get("normalization_type"))
+        df_normalized = norm_obj.normalize_by(pipeline_dict.get("normalization_type")).reset_index()
 
         return df_normalized
 
