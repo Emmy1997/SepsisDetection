@@ -35,6 +35,8 @@ experiment_number = 0
 for filename in os.listdir(path_to_save):
     if filename.startswith('experiment_'):
         exp_num = int(filename.split('_')[1])
+        if len(os.listdir(os.path.join(path_to_save, filename))) == 0:
+            continue
         if exp_num > experiment_number:
             experiment_number = exp_num
 
@@ -43,6 +45,7 @@ experiment_number += 1
 
 # Create folder for experiment number and save files inside
 experiment_folder = os.path.join(path_to_save, f"experiment_{experiment_number}")
+print(f'experiment folder = {experiment_folder}')
 os.makedirs(experiment_folder, exist_ok=True)
 
 # set_A = ['Calcium', 'Chloride', 'Creatinine', 'Bilirubin_direct', 'Glucose', 'Lactate', 'Magnesium']
@@ -53,7 +56,9 @@ set_B = ['BaseExcess', 'HCO3', 'FiO2', 'pH', 'PaCO2', 'SaO2', 'AST', 'BUN',
                          'Hgb', 'PTT', 'WBC', 'Fibrinogen', 'Platelets', 'HR', 'O2Sat', 'Temp', 'SBP',
                          'MAP', 'DBP', 'Resp', 'EtCO2']
 
-train_pipe_line_dict = {"impute_type": 'Mean', 'normalization_type': 'Mean', "feature_set": set_B}
+## impute_type - Mean, 'WindowsMeanBucket', 'PatientBucket'.
+## normalization_type - Mean, 'WindowsMeanBucket', 'WindowsMedianBucket'.
+train_pipe_line_dict = {"impute_type": 'PatientBucket', 'normalization_type': 'Mean', "feature_set": set_B}
 train_path = 'train_df_filtered.csv'
 train_df, val_df = train_val_split(train_path)
 
