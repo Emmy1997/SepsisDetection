@@ -1,9 +1,7 @@
 import copy
-import os
 import pandas as pd
 import numpy as np
-import matplotlib.pyplot as plt
-import seaborn as sns
+
 
 class Imputations:
     def __init__(self, train_df: pd.DataFrame, patients_ids: list):
@@ -232,6 +230,17 @@ class Normalization:
         return train_df_mean
 
     def normalize_bucket(self, by = 'Mean'):
+        """
+        Normalize continuous features by dividing them into three buckets using the specified method of
+        aggregation (mean, median or max) and computing the corresponding bucket values for each patient.
+
+        :param by: The method of aggregation to use (default: 'Max').
+            One of 'Mean', 'Median' or 'Max'.
+        :type by: str
+
+        :return: A DataFrame containing one row per patient and the computed bucket values for each continuous feature.
+        :rtype: pandas.DataFrame
+        """
         train_patients = dict(list(self.train_df.groupby('patient')))
         func = np.max
         if by == 'Mean':
@@ -322,6 +331,11 @@ class PreProcess:
 
     @staticmethod
     def get_last_feature(train_df):
+        """
+        create 2 new columns based on last value
+        :param train_df:
+        :return:
+        """
         # Create a new column 'ICULOS_final' with the last non-null value of ICULOS for each patient
         last_ICULOS = train_df.groupby('patient')['ICULOS'].last()
         last_ICULOS_dict = last_ICULOS.to_dict()
@@ -334,22 +348,38 @@ class PreProcess:
 
     def run_pipeline(self, pipeline_dict=None):
         """
-        pipeline_dict = {"impute_type": 'Mean' (one of 'Mean', "WindowsMeanBucket" or "PatientBucket") ,
-                        "normalization_type": 'mean' (one of 'Mean', 'WindowsMeanBucket', 'WindowsMedianBucket')}
-        :param pipeline_dict:
-        :return:
-        """
-        if pipeline_dict is None:
-            pipeline_dict = { "impute_type": 'Mean', 'normalization_type': 'Mean',
-                              "feature_set": self.default_features}
+            Runs a pipeline of data preprocessing steps on the training dataframe.
 
+            Args:
+                pipeline_dict (dict): A dictionary containing the following keys (default is None):
+                    - 'impute_type' (str): Type of imputation method to use. One of 'Mean', 'WindowsMeanBucket' or 'PatientBucket'.
+                    - 'normalization_type' (str): Type of normalization method to use. One of 'Mean', 'WindowsMeanBucket' or 'WindowsMedianBucket'.
+                    - 'feature_set' (list): A list of features to use for training. Default is self.default_features.
+
+            Returns:
+                pd.DataFrame: The preprocessed training dataframe with imputations and normalizations applied.
+            """
+        # If pipeline_dict is None, use default parameters
+        if pipeline_dict is None:
+            pipeline_dict = {"impute_type": 'Mean', 'normalization_type': 'mean', "feature_set": self.default_features}
+
+        # Organize train data by patient and keep only the last feature observation
         train_df_organized = self.get_last_feature(self.train_df)
+
+        # Perform imputation on the train data
         impute_obj = Imputations(train_df_organized, self.patients_ids)
         train_df_imputed = impute_obj.impute_by(pipeline_dict.get("impute_type"))
+
+        # Compute SIRS score and add to the train data
         train_df_imputed['SIRS'] = train_df_imputed.apply(self.compute_SIRS, axis=1)
+
+        # Filter train data to only include specified features
         features_final = pipeline_dict.get("feature_set") + self.demogs_features + self.special_features
         train_df_filtered = train_df_imputed[features_final]
+
+        # Normalize timeseries feature to have only one per patient based on normalization_type
         new_cont_features = list(set(self.cont_features) & set(train_df_filtered.columns)) + self.special_features
         norm_obj = Normalization(train_df_filtered, new_cont_features)
         train_df_normalized = norm_obj.normalize_by(pipeline_dict.get("normalization_type"))
+
         return train_df_normalized
