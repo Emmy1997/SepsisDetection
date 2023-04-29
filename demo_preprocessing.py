@@ -20,7 +20,7 @@ experiment_folder = os.path.join(path_to_save, f"experiment_{experiment_number}"
 os.makedirs(experiment_folder, exist_ok=True)
 
 set_A = ['Calcium', 'Chloride', 'Creatinine', 'Bilirubin_direct', 'Glucose', 'Lactate', 'Magnesium']
-train_pipe_line_dict = {"impute_type": 'Mean', 'normalization_type': 'Mean', "feature_set": set_A}
+train_pipe_line_dict = {"impute_type": 'WindowsMeanBucket', 'normalization_type': 'Mean', "feature_set": set_A}
 train_path = 'train_df_filtered.csv'
 train_df, val_df = train_val_split(train_path)
 
@@ -31,8 +31,7 @@ train_df_transformed = pre_obj_train.run_pipeline(pipeline_dict=train_pipe_line_
 
 #################### TRANSFORM VAL ####################
 pre_obj_val = PreProcess(val_df, sample=False)
-val_pipe_line_dict = {"impute_type": 'Mean', 'normalization_type': 'Mean', "feature_set": set_A}
-val_df_transformed = pre_obj_val.run_pipeline(train=False, train_df=train_df, pipeline_dict=val_pipe_line_dict)
+val_df_transformed = pre_obj_val.run_pipeline(train=False, train_df=train_df, pipeline_dict=train_pipe_line_dict)
 
 
 ###########################################################
@@ -50,10 +49,6 @@ with open(train_pipeline_dict_file, 'w') as f:
 val_df_file = os.path.join(experiment_folder, 'val_transformed.csv')
 val_df_transformed.to_csv(val_df_file)
 
-# Save pipeline dictionary for validation
-val_pipeline_dict_file = os.path.join(experiment_folder, 'val_pipeline_dict.json')
-with open(val_pipeline_dict_file, 'w') as f:
-    json.dump(val_pipe_line_dict, f)
 
 
 
