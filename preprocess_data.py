@@ -61,59 +61,40 @@ class Imputations:
         data_patients = dict(list(data_df.groupby('patient')))
         self.pipeline_dict['features_train'] = {}
         for feature in self.continuous_features:
-            mean_val_b1_list, mean_val_b2_list, mean_val_b3_list = [], [], []
             ### calculate mean of each bucket
-
+            means = [[], [], []]
             for patient_df in data_patients.values():
                 values = patient_df[feature].values
-                bucket_size = int(len(values) / 3)
-                values1, values2, values3 = values[:bucket_size], values[bucket_size:2 * bucket_size], values[2 * bucket_size:]
-                values1, values2, values3 = values1[~np.isnan(values1)], values2[~np.isnan(values2)], values3[~np.isnan(values3)]
-                if len(values1) > 0:
-                    mean_val_b1_list.extend(values1)
-                if len(values2) > 0:
-                    mean_val_b2_list.extend(values2)
-                if len(values3) > 0:
-                    mean_val_b3_list.extend(values3)
+                sub_arrays = np.array_split(values, 3)
+                for i, sarray in enumerate(sub_arrays):
+                    non_nan_entries = sarray[~np.isnan(sarray)]
+                    means[i].extend(non_nan_entries)
 
-            mean_val_b1, mean_val_b2, mean_val_b3 = np.mean(mean_val_b1_list), np.mean(mean_val_b2_list), np.mean(
-                mean_val_b3_list)
+            mean_val_b1, mean_val_b2, mean_val_b3 = np.mean(means[0]), np.mean(means[1]), np.mean(means[2])
             self.pipeline_dict['features_train'][f'{feature}_b1'] = mean_val_b1
             self.pipeline_dict['features_train'][f'{feature}_b2'] = mean_val_b2
             self.pipeline_dict['features_train'][f'{feature}_b3'] = mean_val_b3
 
             for patient, patient_df in data_patients.items():
                 values = patient_df[feature].values
-                val_b1, val_b2, val_b3 = mean_val_b1, mean_val_b2, mean_val_b3
-
-                bucket_size = int(len(values) / 3)
-                values1, values2, values3 = values[:bucket_size], values[bucket_size:2 * bucket_size], values[
-                                                                                                       2 * bucket_size:]
-                values1, values2, values3 = values1[~np.isnan(values1)], values2[~np.isnan(values2)], values3[
-                    ~np.isnan(values3)]
-
+                values_buckets = [mean_val_b1, mean_val_b2, mean_val_b3]
                 if len(values) > 5:
-                    if len(values1) > 0:
-                        val_b1 = func(values1)
-                    if len(values2) > 0:
-                        val_b2 = func(values2)
-                    if len(values3) > 0:
-                        val_b3 = func(values3)
+                    sub_arrays = np.array_split(values, 3)
+                    for i, sarray in enumerate(sub_arrays):
+                        curr_values = sarray[~np.isnan(sarray)]
+                        if len(curr_values) > 0:
+                            values_buckets[i] = func(curr_values)
 
                 ## take null rows per bucket - True if the value is null and matches current bucket indexing
                 mask = patient_df[feature].isna()
                 b_size = len(mask) // 3
-                mask_b1 = np.zeros_like(mask, dtype=bool)
-                mask_b1[:b_size] = mask[:b_size]
-                patient_df.loc[mask_b1, feature] = val_b1
-                #################################
-                mask_b2 = np.zeros_like(mask, dtype=bool)
-                mask_b2[b_size: 2 * b_size] = mask[b_size: 2 * b_size]
-                patient_df.loc[mask_b2, feature] = val_b2
-                #################################
-                mask_b3 = np.zeros_like(mask, dtype=bool)
-                mask_b3[2 * b_size:] = mask[2 * b_size:]
-                patient_df.loc[mask_b3, feature] = val_b3
+                bucket_idx = np.zeros_like(mask, dtype=np.int8)
+                bucket_idx[b_size:2 * b_size] = 1
+                bucket_idx[2 * b_size:] = 2
+                # Replace NaN values in each bucket
+                for i, bucket_val in enumerate(values_buckets):
+                    bucket_mask = bucket_idx == i
+                    patient_df.loc[bucket_mask & mask, feature] = bucket_val
 
         data_df = self.collect_patients_df(data_patients)
         return data_df
@@ -182,6 +163,7 @@ class ImputationsTest(Imputations):
 
     def impute_mean(self, test_df):
         # Perform mean imputation for continuous features based on means from train
+        ## self.data_df is train_df
         test_df[self.continuous_features] = test_df[self.continuous_features].fillna(
             self.data_df[self.continuous_features].mean())
         return test_df
@@ -196,36 +178,24 @@ class ImputationsTest(Imputations):
 
             for patient, patient_df in test_patients.items():
                 values = patient_df[feature].values
-                val_b1, val_b2, val_b3 = mean_val_b1, mean_val_b2, mean_val_b3
-
-                bucket_size = int(len(values) / 3)
-                values1, values2, values3 = values[:bucket_size], values[bucket_size:2 * bucket_size], values[
-                                                                                                       2 * bucket_size:]
-                values1, values2, values3 = values1[~np.isnan(values1)], values2[~np.isnan(values2)], values3[
-                    ~np.isnan(values3)]
-
+                values_buckets = [mean_val_b1, mean_val_b2, mean_val_b3]
                 if len(values) > 5:
-                    if len(values1) > 0:
-                        val_b1 = func(values1)
-                    if len(values2) > 0:
-                        val_b2 = func(values2)
-                    if len(values3) > 0:
-                        val_b3 = func(values3)
+                    sub_arrays = np.array_split(values, 3)
+                    for i, sarray in enumerate(sub_arrays):
+                        curr_values = sarray[~np.isnan(sarray)]
+                        if len(curr_values) > 0:
+                            values_buckets[i] = func(curr_values)
 
                 ## take null rows per bucket - True if the value is null and matches current bucket indexing
                 mask = patient_df[feature].isna()
                 b_size = len(mask) // 3
-                mask_b1 = np.zeros_like(mask, dtype=bool)
-                mask_b1[:b_size] = mask[:b_size]
-                patient_df.loc[mask_b1, feature] = val_b1
-                #################################
-                mask_b2 = np.zeros_like(mask, dtype=bool)
-                mask_b2[b_size: 2 * b_size] = mask[b_size: 2 * b_size]
-                patient_df.loc[mask_b2, feature] = val_b2
-                #################################
-                mask_b3 = np.zeros_like(mask, dtype=bool)
-                mask_b3[2 * b_size:] = mask[2 * b_size:]
-                patient_df.loc[mask_b3, feature] = val_b3
+                bucket_idx = np.zeros_like(mask, dtype=np.int8)
+                bucket_idx[b_size:2 * b_size] = 1
+                bucket_idx[2 * b_size:] = 2
+                # Replace NaN values in each bucket
+                for i, bucket_val in enumerate(values_buckets):
+                    bucket_mask = bucket_idx == i
+                    patient_df.loc[bucket_mask & mask, feature] = bucket_val
 
         test_df = self.collect_patients_df(test_patients)
         return test_df
@@ -314,6 +284,7 @@ class PreProcess:
                          'MAP', 'DBP', 'Resp', 'EtCO2', 'HospAdmTime_final', 'ICULOS_final']
         self.special_features = ['SIRS']
         self.default_features = self.demogs_features + self.cont_features + self.special_features
+        self.pipeline_dict  = {}
 
     @staticmethod
     def compute_SIRS(row):
@@ -359,9 +330,10 @@ class PreProcess:
                 pd.DataFrame: The preprocessed training dataframe with imputations and normalizations applied.
             """
         # If pipeline_dict is None, use default parameters
-        if pipeline_dict is None:
-            self.pipeline_dict = {"impute_type": 'Mean', 'normalization_type': 'mean', "feature_set": self.default_features}
-        if pipeline_dict.get('feature_set') is None:
+        self.pipeline_dict = pipeline_dict
+        if self.pipeline_dict is None:
+            self.pipeline_dict = {"impute_type": 'Mean', 'normalization_type': 'Mean', "feature_set": self.default_features}
+        if self.pipeline_dict.get('feature_set') is None:
             self.pipeline_dict['feature_set'] = self.default_features
 
         # Organize train data by patient and keep only the last feature observation
@@ -385,11 +357,11 @@ class PreProcess:
         df_imputed['SIRS'] = df_imputed.apply(self.compute_SIRS, axis=1)
 
         # Filter train data to only include specified features
-        features_final = list(set(pipeline_dict.get("feature_set") + self.demogs_features + self.special_features))
+        features_final = list(set(self.pipeline_dict.get("feature_set") + self.demogs_features + self.special_features))
         df_filtered = df_imputed[features_final]
 
         # Normalize timeseries feature to have only one per patient based on normalization_type
-        new_cont_features = list(set(list(set(self.cont_features) & set(df_filtered.columns)) + self.special_features))
+        new_cont_features = list(set(self.cont_features) & set(df_filtered.columns) | set(self.special_features) )
         norm_obj = Normalization(df_filtered, new_cont_features)
         df_normalized = norm_obj.normalize_by(pipeline_dict.get("normalization_type")).reset_index()
 
