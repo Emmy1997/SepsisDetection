@@ -5,6 +5,7 @@ import sys
 import pickle
 from preprocess_data import PreProcess
 import numpy as np
+from sklearn.metrics import f1_score
 
 
 def main():
@@ -32,7 +33,8 @@ def main():
 
     model = pickle.load(open("final_model.pkl", "rb"))
     y_pred = model.predict(test_df_transformed_clean)
-
+    score = f1_score(test_df_transformed[['y']].values.ravel(), y_pred)
+    print(f"F1 score is :{score}")
     df = pd.DataFrame({'id': patient_list, 'prediction': y_pred})
     df.to_csv('prediction.csv', index=False)
 
