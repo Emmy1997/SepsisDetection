@@ -38,9 +38,26 @@ class RandomForest:
         score = f1_score(val_Y, y_pred)
         return score
 
+class XGBOOST:
+    def __init__(self, n, max_depth, features_set):
+        self.n = n
+        self.max_depth= max_depth
+        self.features_set = features_set
+        self.xgboost = XGBClassifier(n_estimators=500, use_label_encoder=False, scale_pos_weight=12,
+                            max_depth=8,verbosity=1, eval_metric='error', max_delta_step=0.15,
+                            subsample=None, alpha=0)
+
+    def train_xgb(self, train_X, train_Y, val_X, val_Y):
+        self.xgboost.fit(train_X[self.features_set], train_Y)
+        y_pred = self.xgboost.predict(val_X[self.features_set])
+        score = f1_score(val_Y, y_pred)
+        return score
+
+
 def training_models(train_X, train_Y, val_X, val_Y, features_set):
     knn_f1_scores = []
     rf_f1_scores = {}
+    xgb_f1_scores = {}
     ## train knn models
     for k in range(1, 25):
         knn = KNN(k, features_set)
@@ -57,15 +74,26 @@ def training_models(train_X, train_Y, val_X, val_Y, features_set):
             rf = RandomForest(n, max_dep, features_set)
             score = rf.train_rf(train_X, train_Y, val_X, val_Y)
             rf_f1_scores[(n, max_dep)] = score
-    best_n_max_depth  = max(rf_f1_scores, key=lambda k: rf_f1_scores[k])
-    best_score_rf = rf_f1_scores[best_n_max_depth]
+    best_n_max_depth_rf  = max(rf_f1_scores, key=lambda k: rf_f1_scores[k])
+    best_score_rf = rf_f1_scores[best_n_max_depth_rf]
+
+    ## train xgb models
+    max_depths = [40, 50, 80, 100, 150, 200]
+    n_estimators = [50, 100, 150, 200, 300]
+    for n in n_estimators:
+        for max_dep in max_depths:
+            xgb = XGBOOST(n, max_dep, features_set)
+            score = xgb.train_xgb(train_X, train_Y, val_X, val_Y)
+            xgb_f1_scores[(n, max_dep)] = score
+    best_n_max_depth_xgb  = max(rf_f1_scores, key=lambda k: xgb_f1_scores[k])
+    best_score_xgb = xgb_f1_scores[best_n_max_depth_xgb]
 
 
 
 
 
-
-    return best_score_knn, best_k, best_score_knn, best_n_max_depth, best_score_rf
+    return best_score_knn, best_k, best_score_knn, best_n_max_depth_rf, best_score_rf, \
+        best_n_max_depth_xgb,best_score_xgb
 
 #
 #
