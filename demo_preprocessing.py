@@ -48,7 +48,6 @@ experiment_folder = os.path.join(path_to_save, f"experiment_{experiment_number}"
 print(f'experiment folder = {experiment_folder}')
 os.makedirs(experiment_folder, exist_ok=True)
 
-# set_A = ['Calcium', 'Chloride', 'Creatinine', 'Bilirubin_direct', 'Glucose', 'Lactate', 'Magnesium']
 set_B = ['BaseExcess', 'HCO3', 'FiO2', 'pH', 'PaCO2', 'SaO2', 'AST', 'BUN',
                          'Alkalinephos',
                          'Calcium', 'Chloride', 'Creatinine', 'Bilirubin_direct', 'Glucose', 'Lactate',
@@ -65,7 +64,7 @@ train_df, val_df = train_val_split(train_path)
 #################### TRANSFORM TRAIN ####################
 pre_obj_train = PreProcess(train_df, sample=True)
 train_df_transformed = pre_obj_train.run_pipeline(pipeline_dict=train_pipe_line_dict)
-
+train_pipe_line_dict = pre_obj_train.pipeline_dict
 
 #################### TRANSFORM VAL ####################
 pre_obj_val = PreProcess(val_df, sample=False)

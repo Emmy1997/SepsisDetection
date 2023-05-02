@@ -4,7 +4,7 @@ import numpy as np
 
 
 class Imputations:
-    def __init__(self, data_df: pd.DataFrame, patients_ids: list):
+    def __init__(self, data_df: pd.DataFrame, patients_ids: list, pipeline_dict: dict):
         self.data_df = data_df
         self.patients_ids = patients_ids
         self.create_patient_group_mapping(self.data_df)
@@ -22,6 +22,7 @@ class Imputations:
                                'Magnesium', 'Phosphate', 'Potassium', 'Bilirubin_total', 'TroponinI', 'Hct',
                                'Hgb', 'PTT', 'WBC', 'Fibrinogen', 'Platelets', 'HR', 'O2Sat', 'Temp', 'SBP', 'MAP',
                                'DBP', 'Resp', 'EtCO2']
+        self.pipeline_dict = pipeline_dict
 
     def create_patients_dict(self):
         self.patients_dfs = dict(list(self.data_df.groupby('patient')))
@@ -58,9 +59,11 @@ class Imputations:
     def impute_windows(self, data_df):
         func = np.median
         data_patients = dict(list(data_df.groupby('patient')))
+        self.pipeline_dict['features_train'] = {}
         for feature in self.continuous_features:
             mean_val_b1_list, mean_val_b2_list, mean_val_b3_list = [], [], []
             ### calculate mean of each bucket
+
             for patient_df in data_patients.values():
                 values = patient_df[feature].values
                 bucket_size = int(len(values) / 3)
@@ -75,6 +78,9 @@ class Imputations:
 
             mean_val_b1, mean_val_b2, mean_val_b3 = np.mean(mean_val_b1_list), np.mean(mean_val_b2_list), np.mean(
                 mean_val_b3_list)
+            self.pipeline_dict['features_train'][f'{feature}_b1'] = mean_val_b1
+            self.pipeline_dict['features_train'][f'{feature}_b2'] = mean_val_b2
+            self.pipeline_dict['features_train'][f'{feature}_b3'] = mean_val_b3
 
             for patient, patient_df in data_patients.items():
                 values = patient_df[feature].values
@@ -87,7 +93,12 @@ class Imputations:
                     ~np.isnan(values3)]
 
                 if len(values) > 5:
-                    val_b1, val_b2, val_b3 = func(values1), func(values2), func(values3)
+                    if len(values1) > 0:
+                        val_b1 = func(values1)
+                    if len(values2) > 0:
+                        val_b2 = func(values2)
+                    if len(values3) > 0:
+                        val_b3 = func(values3)
 
                 ## take null rows per bucket - True if the value is null and matches current bucket indexing
                 mask = patient_df[feature].isna()
@@ -162,9 +173,9 @@ class Imputations:
         return curr_df
 
 class ImputationsTest(Imputations):
-    def __init__(self, train_df: pd.DataFrame, test_df: pd.DataFrame):
+    def __init__(self, train_df: pd.DataFrame, test_df: pd.DataFrame, pipeline_dict: dict):
         train_patient_ids = list(train_df.patient.unique())
-        super().__init__(train_df, train_patient_ids)
+        super().__init__(train_df, train_patient_ids, pipeline_dict)
         self.test_df = test_df
         self.create_patient_group_mapping(test_df)
 
@@ -177,27 +188,11 @@ class ImputationsTest(Imputations):
 
     def impute_windows(self, test_df):
         test_patients = dict(list(test_df.groupby('patient')))
-        train_patients = dict(list(self.data_df.groupby('patient')))
         func = np.median
         for feature in self.continuous_features:
-            mean_val_b1_list, mean_val_b2_list, mean_val_b3_list = [], [], []
-            ### calculate mean of each bucket - based on TRAIN!!
-            for patient_df in train_patients.values():
-                values = patient_df[feature].values
-                bucket_size = int(len(values) / 3)
-                values1, values2, values3 = values[:bucket_size], values[bucket_size:2 * bucket_size], values[
-                                                                                                       2 * bucket_size:]
-                values1, values2, values3 = values1[~np.isnan(values1)], values2[~np.isnan(values2)], values3[
-                    ~np.isnan(values3)]
-                if len(values1) > 0:
-                    mean_val_b1_list.extend(values1)
-                if len(values2) > 0:
-                    mean_val_b2_list.extend(values2)
-                if len(values3) > 0:
-                    mean_val_b3_list.extend(values3)
-
-            mean_val_b1, mean_val_b2, mean_val_b3 = np.mean(mean_val_b1_list), np.mean(mean_val_b2_list), np.mean(
-                mean_val_b3_list)
+            mean_val_b1 = self.pipeline_dict['features_train'][f'{feature}_b1']
+            mean_val_b2 = self.pipeline_dict['features_train'][f'{feature}_b2']
+            mean_val_b3 = self.pipeline_dict['features_train'][f'{feature}_b3']
 
             for patient, patient_df in test_patients.items():
                 values = patient_df[feature].values
@@ -210,7 +205,12 @@ class ImputationsTest(Imputations):
                     ~np.isnan(values3)]
 
                 if len(values) > 5:
-                    val_b1, val_b2, val_b3 = func(values1), func(values2), func(values3)
+                    if len(values1) > 0:
+                        val_b1 = func(values1)
+                    if len(values2) > 0:
+                        val_b2 = func(values2)
+                    if len(values3) > 0:
+                        val_b3 = func(values3)
 
                 ## take null rows per bucket - True if the value is null and matches current bucket indexing
                 mask = patient_df[feature].isna()
@@ -360,9 +360,9 @@ class PreProcess:
             """
         # If pipeline_dict is None, use default parameters
         if pipeline_dict is None:
-            pipeline_dict = {"impute_type": 'Mean', 'normalization_type': 'mean', "feature_set": self.default_features}
+            self.pipeline_dict = {"impute_type": 'Mean', 'normalization_type': 'mean', "feature_set": self.default_features}
         if pipeline_dict.get('feature_set') is None:
-            pipeline_dict['feature_set'] = self.default_features
+            self.pipeline_dict['feature_set'] = self.default_features
 
         # Organize train data by patient and keep only the last feature observation
         df_curr = copy.deepcopy(self.df)
@@ -370,12 +370,12 @@ class PreProcess:
 
         # Perform imputation on the train data
         if train:
-            impute_obj = Imputations(df_organized, self.patients_ids)
+            impute_obj = Imputations(df_organized, self.patients_ids, self.pipeline_dict)
 
         else:
             ## test
             if train_df is not None:
-                impute_obj = ImputationsTest(train_df=train_df, test_df=df_organized)
+                impute_obj = ImputationsTest(train_df=train_df, test_df=df_organized, pipeline_dict=self.pipeline_dict)
             else:
                 raise ValueError("if test then must specify train_df Dataframe as input!")
 
