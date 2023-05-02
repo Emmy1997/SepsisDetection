@@ -33,7 +33,7 @@ def main():
     model = pickle.load(open("final_model.pkl", "rb"))
     y_pred = model.predict(test_df_transformed_clean)
 
-    df = pd.DataFrame({'Id': patient_list, 'SepsisLabel': y_pred})
+    df = pd.DataFrame({'id': patient_list, 'prediction': y_pred})
     df.to_csv('prediction.csv', index=False)
 
 if __name__ == '__main__':
