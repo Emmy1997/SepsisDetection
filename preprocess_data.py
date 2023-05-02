@@ -207,7 +207,7 @@ class ImputationsTest(Imputations):
                 values1, values2, values3 = values[:bucket_size], values[bucket_size:2 * bucket_size], values[
                                                                                                        2 * bucket_size:]
                 values1, values2, values3 = values1[~np.isnan(values1)], values2[~np.isnan(values2)], values3[
-                    ~np.isnan(values1)]
+                    ~np.isnan(values3)]
 
                 if len(values) > 5:
                     val_b1, val_b2, val_b3 = func(values1), func(values2), func(values3)
@@ -246,8 +246,8 @@ class Normalization:
 
     def normalize_mean(self):
         # Group rows by patient and compute the mean
-        curr_features = self.cont_features + ['patient']
-        data_df = self.data_df[curr_features]
+        # curr_features = self.cont_features + ['patient']
+        data_df = self.data_df
         groups = data_df.groupby('patient').mean()
         # Create a new DataFrame where each row represents the mean for a patient
         data_df_mean = pd.DataFrame(groups.values, columns=groups.columns, index=groups.index).reset_index()
@@ -361,6 +361,8 @@ class PreProcess:
         # If pipeline_dict is None, use default parameters
         if pipeline_dict is None:
             pipeline_dict = {"impute_type": 'Mean', 'normalization_type': 'mean', "feature_set": self.default_features}
+        if pipeline_dict.get('feature_set') is None:
+            pipeline_dict['feature_set'] = self.default_features
 
         # Organize train data by patient and keep only the last feature observation
         df_curr = copy.deepcopy(self.df)
@@ -381,14 +383,13 @@ class PreProcess:
 
         # Compute SIRS score and add to the train data
         df_imputed['SIRS'] = df_imputed.apply(self.compute_SIRS, axis=1)
-        df_imputed.dropna(how='all', axis=1, inplace=True) ## drop a column if all the values are NaN
 
         # Filter train data to only include specified features
-        features_final = pipeline_dict.get("feature_set") + self.demogs_features + self.special_features
+        features_final = list(set(pipeline_dict.get("feature_set") + self.demogs_features + self.special_features))
         df_filtered = df_imputed[features_final]
 
         # Normalize timeseries feature to have only one per patient based on normalization_type
-        new_cont_features = list(set(self.cont_features) & set(df_filtered.columns)) + self.special_features
+        new_cont_features = list(set(list(set(self.cont_features) & set(df_filtered.columns)) + self.special_features))
         norm_obj = Normalization(df_filtered, new_cont_features)
         df_normalized = norm_obj.normalize_by(pipeline_dict.get("normalization_type")).reset_index()
 

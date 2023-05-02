@@ -57,13 +57,13 @@ set_B = ['BaseExcess', 'HCO3', 'FiO2', 'pH', 'PaCO2', 'SaO2', 'AST', 'BUN',
                          'MAP', 'DBP', 'Resp', 'EtCO2']
 
 ## impute_type - Mean, 'WindowsMeanBucket', 'PatientBucket'.
-## normalization_type - Mean, 'WindowsMeanBucket', 'WindowsMedianBucket'.
-train_pipe_line_dict = {"impute_type": 'PatientBucket', 'normalization_type': 'Mean', "feature_set": set_B}
+## normalization_type - 'Mean', 'WindowsMeanBucket', 'WindowsMedianBucket'.
+train_pipe_line_dict = {"impute_type": 'WindowsMeanBucket', 'normalization_type': 'WindowsMeanBucket'}
 train_path = 'train_df_filtered.csv'
 train_df, val_df = train_val_split(train_path)
 
 #################### TRANSFORM TRAIN ####################
-pre_obj_train = PreProcess(train_df, sample=False)
+pre_obj_train = PreProcess(train_df, sample=True)
 train_df_transformed = pre_obj_train.run_pipeline(pipeline_dict=train_pipe_line_dict)
 
 
