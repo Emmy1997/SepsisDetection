@@ -4,10 +4,10 @@ import numpy as np
 
 
 class Imputations:
-    def __init__(self, train_df: pd.DataFrame, patients_ids: list):
-        self.train_df = train_df
+    def __init__(self, data_df: pd.DataFrame, patients_ids: list):
+        self.data_df = data_df
         self.patients_ids = patients_ids
-        self.create_patient_group_mapping()
+        self.create_patient_group_mapping(self.data_df)
         self.labs = ['BaseExcess', 'HCO3', 'FiO2', 'pH', 'PaCO2', 'SaO2', 'AST', 'BUN', 'Alkalinephos', 'Calcium',
                 'Chloride', 'Creatinine', 'Bilirubin_direct', 'Glucose', 'Lactate',
                 'Magnesium', 'Phosphate', 'Potassium', 'Bilirubin_total', 'TroponinI', 'Hct', 'Hgb', 'PTT', 'WBC',
@@ -24,7 +24,7 @@ class Imputations:
                                'DBP', 'Resp', 'EtCO2']
 
     def create_patients_dict(self):
-        self.patients_dfs = dict(list(self.train_df.groupby('patient')))
+        self.patients_dfs = dict(list(self.data_df.groupby('patient')))
 
     def collect_patients_df(self, df_dict):
         dfs = []
@@ -35,94 +35,88 @@ class Imputations:
         return train_df
 
 
-    def impute_by(self, impute_name: str):
+    def impute_by(self, data_df,  impute_name: str):
         """
         impute main function
         :param impute_name: one of 'mean', "WindowsMeanBucket" or "PatientBucket"
         :return:
         """
-        train_df = copy.deepcopy(self.train_df)
         if impute_name == 'Mean':
-            return self.impute_mean(train_df)
+            return self.impute_mean(data_df)
         elif impute_name == 'WindowsMeanBucket':
-            return self.impute_windows(train_df)
+            return self.impute_windows(data_df)
         elif impute_name == 'PatientBucket':
-            return self.impute_on_patient_group(train_df)
+            return self.impute_on_patient_group(data_df)
 
-    def impute_mean(self, train_df):
+    def impute_mean(self, data_df):
         # Perform mean imputation for continuous features
-        train_df[self.continuous_features] = train_df[self.continuous_features].fillna(
-            train_df[self.continuous_features].mean())
-        return train_df
+        data_df[self.continuous_features] = data_df[self.continuous_features].fillna(
+            data_df[self.continuous_features].mean())
+        return data_df
 
 
-    def impute_windows(self, train_df):
+    def impute_windows(self, data_df):
         func = np.median
-        train_patients = dict(list(train_df.groupby('patient')))
+        data_patients = dict(list(data_df.groupby('patient')))
         for feature in self.continuous_features:
             mean_val_b1_list, mean_val_b2_list, mean_val_b3_list = [], [], []
             ### calculate mean of each bucket
-            for patient_df in train_patients.values():
-                values = patient_df[feature].dropna()
-                if len(values) > 5:
-                    bucket_size = int(len(values) / 3)
-                    values1, values2, values3 = values[:bucket_size], values[bucket_size:2 * bucket_size], values[
-                                                                                                           2 * bucket_size:]
+            for patient_df in data_patients.values():
+                values = patient_df[feature].values
+                bucket_size = int(len(values) / 3)
+                values1, values2, values3 = values[:bucket_size], values[bucket_size:2 * bucket_size], values[2 * bucket_size:]
+                values1, values2, values3 = values1[~np.isnan(values1)], values2[~np.isnan(values2)], values3[~np.isnan(values3)]
+                if len(values1) > 0:
                     mean_val_b1_list.extend(values1)
+                if len(values2) > 0:
                     mean_val_b2_list.extend(values2)
+                if len(values3) > 0:
                     mean_val_b3_list.extend(values3)
 
             mean_val_b1, mean_val_b2, mean_val_b3 = np.mean(mean_val_b1_list), np.mean(mean_val_b2_list), np.mean(
                 mean_val_b3_list)
 
-            for patient, patient_df in train_patients.items():
-                values = patient_df[feature].dropna().values
-                final_values = {}
-                if len(values) > 5:
-                    bucket_size = int(len(values) / 3)
-                    values1, values2, values3 = [values[:bucket_size], values[bucket_size:2 * bucket_size], values[
-                                                                                                            2 * bucket_size:]]
-                    val1, val2, val3 = func(values1), func(values2), func(values3)
-                elif len(values) > 2:
-                    val1, val2, val3 = values[0], values[1], func(values[2:])
-                else:
-                    val1, val2, val3 = mean_val_b1, mean_val_b2, mean_val_b3
+            for patient, patient_df in data_patients.items():
+                values = patient_df[feature].values
+                val_b1, val_b2, val_b3 = mean_val_b1, mean_val_b2, mean_val_b3
 
-                final_values[f'{feature}_b1'] = val1
-                final_values[f'{feature}_b2'] = val2
-                final_values[f'{feature}_b3'] = val3
+                bucket_size = int(len(values) / 3)
+                values1, values2, values3 = values[:bucket_size], values[bucket_size:2 * bucket_size], values[
+                                                                                                       2 * bucket_size:]
+                values1, values2, values3 = values1[~np.isnan(values1)], values2[~np.isnan(values2)], values3[
+                    ~np.isnan(values3)]
+
+                if len(values) > 5:
+                    val_b1, val_b2, val_b3 = func(values1), func(values2), func(values3)
 
                 ## take null rows per bucket - True if the value is null and matches current bucket indexing
                 mask = patient_df[feature].isna()
                 b_size = len(mask) // 3
                 mask_b1 = np.zeros_like(mask, dtype=bool)
                 mask_b1[:b_size] = mask[:b_size]
-                patient_df.loc[mask_b1, feature] = final_values[f'{feature}_b1']
+                patient_df.loc[mask_b1, feature] = val_b1
                 #################################
                 mask_b2 = np.zeros_like(mask, dtype=bool)
                 mask_b2[b_size: 2 * b_size] = mask[b_size: 2 * b_size]
-                patient_df.loc[mask_b2, feature] = final_values[f'{feature}_b2']
+                patient_df.loc[mask_b2, feature] = val_b2
                 #################################
                 mask_b3 = np.zeros_like(mask, dtype=bool)
                 mask_b3[2 * b_size:] = mask[2 * b_size:]
-                patient_df.loc[mask_b3, feature] = final_values[f'{feature}_b3']
+                patient_df.loc[mask_b3, feature] = val_b3
 
-        train_df = self.collect_patients_df(train_patients)
-        return train_df
+        data_df = self.collect_patients_df(data_patients)
+        return data_df
 
 
-    def create_patient_group_mapping(self):
-        sick_df_training = self.train_df[self.train_df.y == 1]
-        sick_grouped = sick_df_training.groupby('patient').agg(
-            {'patient': ['first'], 'timestamp': ['max']}).reset_index()
-        sick_grouped.columns = ['_'.join(col) for col in sick_grouped.columns.values]
-        sick_grouped = sick_grouped[['patient_first', 'timestamp_max']]
-        sick_grouped = sick_grouped.rename(columns={'patient_first': 'patient'})
-        sick_united = pd.merge(sick_df_training, sick_grouped, on='patient', how='inner')
+    def create_patient_group_mapping(self, df_curr):
+        # Create a new column 'timestamp_max' with the last non-null value of timestamp_max for each patient
+        last_ts = df_curr.groupby('patient')['timestamp'].last()
+        last_ts_dict = last_ts.to_dict()
+        df_curr['timestamp_max'] = df_curr['patient'].map(last_ts_dict)
 
-        fast_sick = sick_united[sick_united['timestamp_max'] < 24]
-        med_sick = sick_united[(sick_united['timestamp_max'] >= 24) & (sick_united['timestamp_max'] < 72)]
-        slow_sick = sick_united[sick_united['timestamp_max'] >= 72]
+        fast_sick = df_curr[df_curr['timestamp_max'] < 24]
+        med_sick = df_curr[(df_curr['timestamp_max'] >= 24) & (df_curr['timestamp_max'] < 72)]
+        slow_sick = df_curr[df_curr['timestamp_max'] >= 72]
 
         patient_fast = fast_sick.patient.unique()
         patient_med = med_sick.patient.unique()
@@ -136,10 +130,8 @@ class Imputations:
             return 1
         elif patient in self.patient_mapping['slow']:
             return 2
-        else:
-            return -1  # Assign a default value for patients not found in any group - healthy
 
-    def impute_on_patient_group(self, train_df: pd.DataFrame):
+    def impute_on_patient_group(self, curr_df: pd.DataFrame):
         """
             Imputes missing values in demographic features of the training data.
 
@@ -154,25 +146,94 @@ class Imputations:
                 The training data with imputed demographic features.
         """
         # Add a new column to train_df with the assigned values
-        train_df['patient_group'] = train_df['patient'].apply(self.assign_patient_group)
+        curr_df['patient_group'] = curr_df['patient'].apply(self.assign_patient_group)
 
         # Group the data by patient_group and continuous feature, and get the mean for each group
-        mean_vals = train_df.groupby(['patient_group'])[self.continuous_features].mean().reset_index()
+        mean_vals = curr_df.groupby(['patient_group'])[self.continuous_features].mean().reset_index()
         # Merge the mean values back into the original dataframe
-        train_df = pd.merge(train_df, mean_vals, on='patient_group', how='left', suffixes=('', '_mean'))
+        curr_df = pd.merge(curr_df, mean_vals, on='patient_group', how='left', suffixes=('', '_mean'))
         # Use vectorized operations to impute missing values based on the mean values
         for feature in self.continuous_features:
-            mask = train_df[feature].isna()
-            train_df.loc[mask, feature] = train_df.loc[mask, feature + '_mean']
+            mask = curr_df[feature].isna()
+            curr_df.loc[mask, feature] = curr_df.loc[mask, feature + '_mean']
 
         # Remove the extra columns
-        train_df = train_df.drop(columns=[feature + '_mean' for feature in self.continuous_features])
-        return train_df
+        curr_df = curr_df.drop(columns=[feature + '_mean' for feature in self.continuous_features])
+        return curr_df
+
+class ImputationsTest(Imputations):
+    def __init__(self, train_df: pd.DataFrame, test_df: pd.DataFrame):
+        train_patient_ids = list(train_df.patient.unique())
+        super().__init__(train_df, train_patient_ids)
+        self.test_df = test_df
+        self.create_patient_group_mapping(test_df)
+
+
+    def impute_mean(self, test_df):
+        # Perform mean imputation for continuous features based on means from train
+        test_df[self.continuous_features] = test_df[self.continuous_features].fillna(
+            self.data_df[self.continuous_features].mean())
+        return test_df
+
+    def impute_windows(self, test_df):
+        test_patients = dict(list(test_df.groupby('patient')))
+        train_patients = dict(list(self.data_df.groupby('patient')))
+        func = np.median
+        for feature in self.continuous_features:
+            mean_val_b1_list, mean_val_b2_list, mean_val_b3_list = [], [], []
+            ### calculate mean of each bucket - based on TRAIN!!
+            for patient_df in train_patients.values():
+                values = patient_df[feature].values
+                bucket_size = int(len(values) / 3)
+                values1, values2, values3 = values[:bucket_size], values[bucket_size:2 * bucket_size], values[
+                                                                                                       2 * bucket_size:]
+                values1, values2, values3 = values1[~np.isnan(values1)], values2[~np.isnan(values2)], values3[
+                    ~np.isnan(values3)]
+                if len(values1) > 0:
+                    mean_val_b1_list.extend(values1)
+                if len(values2) > 0:
+                    mean_val_b2_list.extend(values2)
+                if len(values3) > 0:
+                    mean_val_b3_list.extend(values3)
+
+            mean_val_b1, mean_val_b2, mean_val_b3 = np.mean(mean_val_b1_list), np.mean(mean_val_b2_list), np.mean(
+                mean_val_b3_list)
+
+            for patient, patient_df in test_patients.items():
+                values = patient_df[feature].values
+                val_b1, val_b2, val_b3 = mean_val_b1, mean_val_b2, mean_val_b3
+
+                bucket_size = int(len(values) / 3)
+                values1, values2, values3 = values[:bucket_size], values[bucket_size:2 * bucket_size], values[
+                                                                                                       2 * bucket_size:]
+                values1, values2, values3 = values1[~np.isnan(values1)], values2[~np.isnan(values2)], values3[
+                    ~np.isnan(values3)]
+
+                if len(values) > 5:
+                    val_b1, val_b2, val_b3 = func(values1), func(values2), func(values3)
+
+                ## take null rows per bucket - True if the value is null and matches current bucket indexing
+                mask = patient_df[feature].isna()
+                b_size = len(mask) // 3
+                mask_b1 = np.zeros_like(mask, dtype=bool)
+                mask_b1[:b_size] = mask[:b_size]
+                patient_df.loc[mask_b1, feature] = val_b1
+                #################################
+                mask_b2 = np.zeros_like(mask, dtype=bool)
+                mask_b2[b_size: 2 * b_size] = mask[b_size: 2 * b_size]
+                patient_df.loc[mask_b2, feature] = val_b2
+                #################################
+                mask_b3 = np.zeros_like(mask, dtype=bool)
+                mask_b3[2 * b_size:] = mask[2 * b_size:]
+                patient_df.loc[mask_b3, feature] = val_b3
+
+        test_df = self.collect_patients_df(test_patients)
+        return test_df
 
 
 class Normalization:
-    def __init__(self, train_df, cont_features):
-        self.train_df = train_df
+    def __init__(self, data_df, cont_features):
+        self.data_df = data_df
         self.cont_features = cont_features
 
     def normalize_by(self, normalization_type):
@@ -185,12 +246,12 @@ class Normalization:
 
     def normalize_mean(self):
         # Group rows by patient and compute the mean
-        curr_features = self.cont_features + ['patient']
-        train_df =  self.train_df[curr_features]
-        groups = train_df.groupby('patient').mean()
+        # curr_features = self.cont_features + ['patient']
+        data_df = self.data_df
+        groups = data_df.groupby('patient').mean()
         # Create a new DataFrame where each row represents the mean for a patient
-        train_df_mean = pd.DataFrame(groups.values, columns=groups.columns, index=groups.index).reset_index()
-        return train_df_mean
+        data_df_mean = pd.DataFrame(groups.values, columns=groups.columns, index=groups.index).reset_index()
+        return data_df_mean
 
     def normalize_bucket(self, by = 'Mean'):
         """
@@ -204,13 +265,13 @@ class Normalization:
         :return: A DataFrame containing one row per patient and the computed bucket values for each continuous feature.
         :rtype: pandas.DataFrame
         """
-        train_patients = dict(list(self.train_df.groupby('patient')))
+        data_patients = dict(list(self.data_df.groupby('patient')))
         agg_func = np.max
         if by == 'Mean':
-            func = np.mean
+            agg_func = np.mean
         elif by == 'Median':
-            func = np.median
-        for patient, patient_df in train_patients.items():
+            agg_func = np.median
+        for patient, patient_df in data_patients.items():
             for feature in self.cont_features:
                 values = patient_df[feature].values
                 if len(values) > 5:
@@ -228,115 +289,10 @@ class Normalization:
                 patient_df.drop(columns=[feature], inplace=True)
 
             ## keep one row per patient
-            train_patients[patient] = patient_df.head(1)
+            data_patients[patient] = patient_df.head(1)
 
-        train_df = pd.concat(train_patients.values(), ignore_index=True).reset_index()
-        return train_df
-
-
-"""
-###############################
-feature set:
-- more than 90% missing values - TroponinI, Fibrinogen, EtCO2, and Bilirubin_direct 
-- dropping unit2 and unit1
-- with SIRS column
-###############################
-1. until temp
-2. all 
-3. hypothesis was rejected
-###############################
-must features:
-ICULOSS
-HospAdmTime
-Age, Gender
-###############################
-filtering:
-1. patients with more than than x% null rows
-2. filter all rows per patient if all from some point is null
-
-normalization per patient:
-1. mean 
-2. window and then median/mean
-"""
-
-class ImputationsTest(Imputations):
-    def __init__(self, train_df: pd.DataFrame, test_df: pd.DataFrame):
-        train_patient_ids = list(train_df.patient.unique())
-        super().__init__(train_df, train_patient_ids)
-        self.test_df = test_df
-
-    def impute_by(self, impute_name: str):
-        """
-        impute main function
-        :param impute_name: one of 'mean', "WindowsMeanBucket" or "PatientBucket"
-        :return:
-        """
-        test_df = copy.deepcopy(self.test_df)
-        if impute_name == 'Mean':
-            return self.impute_mean(test_df)
-        elif impute_name == 'WindowsMeanBucket':
-            return self.impute_windows(test_df)
-
-    def impute_mean(self, test_df):
-        # Perform mean imputation for continuous features based on means from train
-        test_df[self.continuous_features] = test_df[self.continuous_features].fillna(
-            self.train_df[self.continuous_features].mean())
-        return test_df
-
-    def impute_windows(self, test_df):
-        test_patients = dict(list(test_df.groupby('patient')))
-        train_patients = dict(list(self.train_df.groupby('patient')))
-        for feature in self.continuous_features:
-            mean_val_b1_list, mean_val_b2_list, mean_val_b3_list = [], [], []
-            ### calculate mean of each bucket - based on TRAIN!!
-            for patient_df in train_patients.values():
-                values = patient_df[feature].dropna()
-                if len(values) > 5:
-                    bucket_size = int(len(values) / 3)
-                    values1, values2, values3 = values[:bucket_size], values[bucket_size:2 * bucket_size], values[
-                                                                                                           2 * bucket_size:]
-                    mean_val_b1_list.extend(values1)
-                    mean_val_b2_list.extend(values2)
-                    mean_val_b3_list.extend(values3)
-
-            mean_val_b1, mean_val_b2, mean_val_b3 = np.mean(mean_val_b1_list), np.mean(mean_val_b2_list), np.mean(
-                mean_val_b3_list)
-
-            ### now impute TEST
-            for patient, patient_df in test_patients.items():
-                values = patient_df[feature].dropna()
-                final_values = {}
-                if len(values) > 5:
-                    bucket_size = int(len(values) / 3)
-                    values1, values2, values3 = values[:bucket_size], values[bucket_size:2 * bucket_size], values[
-                                                                                                           2 * bucket_size:]
-                    med1, med2, med3 = np.median(values1), np.median(values2), np.median(values3)
-                    final_values[f'{feature}_b1'] = med1
-                    final_values[f'{feature}_b2'] = med2
-                    final_values[f'{feature}_b3'] = med3
-                else:
-                    final_values[f'{feature}_b1'] = mean_val_b1
-                    final_values[f'{feature}_b2'] = mean_val_b2
-                    final_values[f'{feature}_b3'] = mean_val_b3
-
-                mask = patient_df[feature].isna()
-                b_size = len(mask) // 3
-                mask_b1 = np.zeros_like(mask, dtype=bool)
-                mask_b1[:b_size] = mask[:b_size]
-                patient_df.loc[mask_b1, feature] = final_values[f'{feature}_b1']
-                #################################
-                mask_b2 = np.zeros_like(mask, dtype=bool)
-                mask_b2[b_size: 2 * b_size] = mask[b_size: 2 * b_size]
-                patient_df.loc[mask_b2, feature] = final_values[f'{feature}_b2']
-                #################################
-                mask_b3 = np.zeros_like(mask, dtype=bool)
-                mask_b3[2 * b_size:] = mask[2 * b_size:]
-                patient_df.loc[mask_b3, feature] = final_values[f'{feature}_b3']
-
-        test_df = self.collect_patients_df(test_patients)
-        return test_df
-
-
+        data_df = pd.concat(data_patients.values(), ignore_index=True).reset_index()
+        return data_df
 
 
 class PreProcess:
@@ -355,7 +311,7 @@ class PreProcess:
                          'Calcium', 'Chloride', 'Creatinine', 'Bilirubin_direct', 'Glucose', 'Lactate',
                          'Magnesium', 'Phosphate', 'Potassium', 'Bilirubin_total', 'TroponinI', 'Hct',
                          'Hgb', 'PTT', 'WBC', 'Fibrinogen', 'Platelets', 'HR', 'O2Sat', 'Temp', 'SBP',
-                         'MAP', 'DBP', 'Resp', 'EtCO2']
+                         'MAP', 'DBP', 'Resp', 'EtCO2', 'HospAdmTime_final', 'ICULOS_final']
         self.special_features = ['SIRS']
         self.default_features = self.demogs_features + self.cont_features + self.special_features
 
@@ -405,6 +361,8 @@ class PreProcess:
         # If pipeline_dict is None, use default parameters
         if pipeline_dict is None:
             pipeline_dict = {"impute_type": 'Mean', 'normalization_type': 'mean', "feature_set": self.default_features}
+        if pipeline_dict.get('feature_set') is None:
+            pipeline_dict['feature_set'] = self.default_features
 
         # Organize train data by patient and keep only the last feature observation
         df_curr = copy.deepcopy(self.df)
@@ -413,6 +371,7 @@ class PreProcess:
         # Perform imputation on the train data
         if train:
             impute_obj = Imputations(df_organized, self.patients_ids)
+
         else:
             ## test
             if train_df is not None:
@@ -420,18 +379,17 @@ class PreProcess:
             else:
                 raise ValueError("if test then must specify train_df Dataframe as input!")
 
-        df_imputed = impute_obj.impute_by(pipeline_dict.get("impute_type"))
+        df_imputed = impute_obj.impute_by(df_organized, pipeline_dict.get("impute_type"))
 
         # Compute SIRS score and add to the train data
         df_imputed['SIRS'] = df_imputed.apply(self.compute_SIRS, axis=1)
-        df_imputed.dropna(how='all', axis=1, inplace=True) ## drop a column if all the values are NaN
 
         # Filter train data to only include specified features
-        features_final = pipeline_dict.get("feature_set") + self.demogs_features + self.special_features
+        features_final = list(set(pipeline_dict.get("feature_set") + self.demogs_features + self.special_features))
         df_filtered = df_imputed[features_final]
 
         # Normalize timeseries feature to have only one per patient based on normalization_type
-        new_cont_features = list(set(self.cont_features) & set(df_filtered.columns)) + self.special_features
+        new_cont_features = list(set(list(set(self.cont_features) & set(df_filtered.columns)) + self.special_features))
         norm_obj = Normalization(df_filtered, new_cont_features)
         df_normalized = norm_obj.normalize_by(pipeline_dict.get("normalization_type")).reset_index()
 
