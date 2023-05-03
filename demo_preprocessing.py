@@ -57,7 +57,7 @@ set_B = ['BaseExcess', 'HCO3', 'FiO2', 'pH', 'PaCO2', 'SaO2', 'AST', 'BUN',
 
 ## impute_type - Mean, 'WindowsMeanBucket', 'PatientBucket'.
 ## normalization_type - 'Mean', 'WindowsMeanBucket', 'WindowsMedianBucket'.
-train_pipe_line_dict = {"impute_type": 'PatientBucket', 'normalization_type': 'WindowsMeanBucket'}
+train_pipe_line_dict = {"impute_type": 'WindowsMeanBucket', 'normalization_type': 'WindowsMedianBucket'}
 train_path = 'train_df_filtered.csv'
 train_df, val_df = train_val_split(train_path)
 
