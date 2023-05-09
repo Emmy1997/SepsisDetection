@@ -1,4 +1,4 @@
-from preprocess_data import PreProcess, train_val_split
+from utils.preprocess_data import PreProcess, train_val_split
 import os
 import json
 
