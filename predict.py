@@ -43,7 +43,7 @@ def main():
     train_df = pd.read_csv('train_df_filtered.csv')
     test_df_transformed = pre_obj_val.run_pipeline(train=False, train_df=train_df, pipeline_dict=train_pipe_line_dict)
     ### start prediction
-    y_true = test_df_transformed['y'].values.ravel()
+    # y_true = test_df_transformed['y'].values.ravel()
     cols_to_drop = ['patient', 'y', 'index', "level_0", 'SepsisLabel']
     patient_list = test_df_transformed['patient'].values
     cols_to_drop = list(set(test_df_transformed.columns) & set(cols_to_drop))
