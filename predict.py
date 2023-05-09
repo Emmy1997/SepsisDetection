@@ -3,7 +3,7 @@ import pandas as pd
 import os
 import sys
 import pickle
-from preprocess_data import PreProcess
+from utils.preprocess_data import PreProcess
 import numpy as np
 from sklearn.metrics import f1_score
 from collections import OrderedDict

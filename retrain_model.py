@@ -3,7 +3,7 @@ from xgboost import XGBClassifier
 import pickle
 
 
-
+print("loading data")
 train_df = pd.read_csv(f'transformed_files/experiment_9/train_transformed.csv')
 val_df = pd.read_csv(f'transformed_files/experiment_9/val_transformed.csv')
 to_remove = ['level_0', 'index', 'patient', 'y', 'Unnamed: 0']
@@ -20,8 +20,9 @@ full_Y = pd.concat([train_Y, val_Y], axis=0)
 # num estimators = 400 max_depth = 80 sub_sample=0.8
 
 xgboost = XGBClassifier(n_estimators=400, scale_pos_weight=13,
-                             max_depth=80, verbosity=1, eval_metric='error', max_delta_step=0.15,
+                             max_depth=80, verbosity=0, eval_metric='error', max_delta_step=0.15,
                              subsample=0.8)
+print("start training")
 xgboost.fit(full_X[features], full_Y)
 with open('xgb_model.pickle', 'wb') as f:
     pickle.dump(xgboost, f)
