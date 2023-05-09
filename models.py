@@ -41,7 +41,8 @@ class XGBOOST:
         self.features_set = features_set
         self.xgboost = XGBClassifier(n_estimators=self.n, scale_pos_weight=13,
                             max_depth=self.max_depth, verbosity=0, eval_metric='error', max_delta_step=0.15,
-                            subsample=self.subsample)
+
+
 
     def train_xgb(self, train_X, train_Y, val_X, val_Y):
         self.xgboost.fit(train_X[self.features_set], train_Y)
@@ -70,4 +71,4 @@ class CATBOOST:
         print(self.catboost.best_iteration_)
         y_pred = self.catboost.predict(val_X[self.features_set])
         score = f1_score(val_Y, y_pred)
-        return score,self.catboost.best_iteration_
+        return score, self.catboost.best_iteration_
