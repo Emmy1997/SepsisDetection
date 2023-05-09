@@ -1,7 +1,8 @@
 import copy
 import pandas as pd
 import numpy as np
-
+import warnings
+warnings.simplefilter(action='ignore', category=pd.errors.PerformanceWarning)
 
 class Imputations:
     def __init__(self, data_df: pd.DataFrame, patients_ids: list, pipeline_dict: dict):
@@ -272,7 +273,9 @@ class PreProcess:
             self.df = self.df.head(10000)
 
         self.df = self.df.sort_values(['patient', 'timestamp'])
-        self.df.drop(columns=['index', 'Unnamed: 0.1'], inplace=True)
+        cols_to_drop = ['index', 'Unnamed: 0.1']
+        cols_to_drop = list(set(self.df.columns) & set(cols_to_drop))
+        self.df.drop(columns=cols_to_drop, inplace=True)
         self.patients_ids = self.df.patient.unique()
         self.demogs_features = ['patient', 'y', 'Age', 'Gender', 'HospAdmTime_final', 'ICULOS_final']
         # List of continuous features
@@ -364,7 +367,8 @@ class PreProcess:
         new_cont_features = list(set(self.cont_features) & set(df_filtered.columns) | set(self.special_features) )
         norm_obj = Normalization(df_filtered, new_cont_features)
         df_normalized = norm_obj.normalize_by(pipeline_dict.get("normalization_type")).reset_index()
-
+        final_cols = list(set(df_normalized.columns))
+        df_normalized = df_normalized[final_cols]
         return df_normalized
 
 

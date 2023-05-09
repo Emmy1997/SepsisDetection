@@ -16,7 +16,7 @@ train_df = pd.read_csv(f'transformed_files/experiment_9/train_transformed.csv')
 val_df = pd.read_csv(f'transformed_files/experiment_9/val_transformed.csv')
 # train_df_with_labeles = pd.merge(train_df, train_df_filtered, on='patient',how='inner')
 # val_df_with_labeles = pd.merge(val_df, train_df_filtered, on='patient',how='inner')
-to_remove =['index', 'patient', 'y']
+to_remove = ['level_0', 'index', 'patient', 'y', 'Unnamed: 0']
 features = list(set(train_df.columns))
 features = [x for x in features if x not in to_remove]
 print(features)
