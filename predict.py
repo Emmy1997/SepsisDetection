@@ -6,16 +6,14 @@ import pickle
 from preprocess_data import PreProcess
 import numpy as np
 from sklearn.metrics import f1_score
-import re
+from collections import OrderedDict
 
 def main():
     args = sys.argv[1:]
     path = args[0]
     X_test = []
     patient_list = []
-    files = sorted([(int(re.findall(r'\d+', s)[-1]), s) for s in os.listdir(path)])
-    files = [s[1] for s in files]
-    for file in files:
+    for file in os.listdir(path):
         df = pd.read_csv(f"{path}/{file}", sep='|')
         p_name = file.split('/')[-1].split('.')[0]
         patient_list.append(p_name)
@@ -57,6 +55,11 @@ def main():
     ## compute result
     score = f1_score(y_true, y_pred)
     print(f"F1 score is :{score}")
+    patient_pred = {p: y for p, y in zip(patient_list, y_pred)}
+    patient_pred = OrderedDict(patient_pred)
+    patient_pred = OrderedDict(sorted(patient_pred.items(), key = lambda x: int(x[0].split('_')[-1])))
+    patient_list = list(patient_pred.keys())
+    y_pred = list(patient_pred.values())
     df = pd.DataFrame({'id': patient_list, 'prediction': y_pred})
     df.to_csv('prediction.csv', index=False)
 
