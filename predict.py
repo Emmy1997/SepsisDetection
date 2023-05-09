@@ -42,7 +42,6 @@ def main():
     train_pipe_line_dict = json.load(open(f'train_pipeline_dict.json', 'r'))
     train_df = pd.read_csv('train_df_filtered.csv')
     test_df_transformed = pre_obj_val.run_pipeline(train=False, train_df=train_df, pipeline_dict=train_pipe_line_dict)
-    test_df_transformed.to_csv("test_df_transformed.csv")
     ### start prediction
     y_true = test_df_transformed['y'].values.ravel()
     cols_to_drop = ['patient', 'y', 'index', "level_0", 'SepsisLabel']
@@ -53,8 +52,8 @@ def main():
     cols = model.get_booster().feature_names
     y_pred = model.predict(test_df_transformed_clean[cols])
     ## compute result
-    score = f1_score(y_true, y_pred)
-    print(f"F1 score is :{score}")
+    # score = f1_score(y_true, y_pred)
+    # print(f"F1 score is :{score}")
     patient_pred = {p: y for p, y in zip(patient_list, y_pred)}
     patient_pred = OrderedDict(patient_pred)
     patient_pred = OrderedDict(sorted(patient_pred.items(), key = lambda x: int(x[0].split('_')[-1])))

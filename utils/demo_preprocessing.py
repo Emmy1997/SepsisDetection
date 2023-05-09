@@ -2,7 +2,7 @@ from utils.preprocess_data import PreProcess, train_val_split
 import os
 import json
 
-path_to_save = 'transformed_files'
+path_to_save = '../transformed_files'
 
 """
 ###############################
@@ -58,7 +58,7 @@ set_B = ['BaseExcess', 'HCO3', 'FiO2', 'pH', 'PaCO2', 'SaO2', 'AST', 'BUN',
 ## impute_type - Mean, 'WindowsMeanBucket', 'PatientBucket'.
 ## normalization_type - 'Mean', 'WindowsMeanBucket', 'WindowsMedianBucket'.
 train_pipe_line_dict = {"impute_type": 'Mean', 'normalization_type': 'WindowsMedianBucket'}
-train_path = 'train_df_filtered.csv'
+train_path = '../train_df_filtered.csv'
 train_df, val_df = train_val_split(train_path)
 
 #################### TRANSFORM TRAIN ####################
@@ -76,7 +76,7 @@ train_df_file = os.path.join(experiment_folder, 'train_transformed.csv')
 train_df_transformed.to_csv(train_df_file)
 
 # Save pipeline dictionary for train
-train_pipeline_dict_file = os.path.join(experiment_folder, 'train_pipeline_dict.json')
+train_pipeline_dict_file = os.path.join(experiment_folder, '../train_pipeline_dict.json')
 with open(train_pipeline_dict_file, 'w') as f:
     json.dump(train_pipe_line_dict, f)
 
