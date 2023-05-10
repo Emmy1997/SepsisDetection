@@ -10,10 +10,11 @@ from preprocess_data import PreProcess
 import numpy as np
 from xgboost import XGBClassifier
 from sklearn.metrics import f1_score
-import shap
+# import shap
 
 
 def main():
+    pass
     # test_df_transformed_clean = pd.read_csv("../test_df_transformed.csv")
     # model = pickle.load(open("../xgb_model.pickle", "rb"))
     # cols = model.get_booster().feature_names
@@ -33,14 +34,14 @@ def main():
 
     ## load shap
     # Load SHAP values from a pickle file
-    with open('shap_values.pickle', 'rb') as handle:
-        shap_values = pickle.load(handle)
-    # Plot SHAP values with larger figure size
-    fig = plt.figure()
-    shap.plots.bar(shap_values, show=False)
-    plt.gcf().set_size_inches(20, 6)
-    plt.savefig("shap_values.jpg")
-    plt.show()
+    # with open('shap_values.pickle', 'rb') as handle:
+    #     shap_values = pickle.load(handle)
+    # # Plot SHAP values with larger figure size
+    # fig = plt.figure()
+    # shap.plots.bar(shap_values, show=False)
+    # plt.gcf().set_size_inches(20, 6)
+    # plt.savefig("shap_values.jpg")
+    # plt.show()
     #
     # with open("shap_value.txt", "w") as file:
     #     for value in shap_values:
